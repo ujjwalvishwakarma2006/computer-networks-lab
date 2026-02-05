@@ -35,3 +35,5 @@ Therefore, the description starts with the 3rd lab session.
 4. Client can then connect to the resolved IP address
 
 Fun fact: Both servers can run simultaneously since they use different ports!
+
+## 2. Client-Server Chat Application with file transfer support
