@@ -11,11 +11,11 @@ void send_file(FILE* fp, int sockfd) {
     char data[SIZE] = {0};
 
     while(fgets(data, SIZE, fp) != NULL) {
-	if (send(sockfd, data, sizeof(data), 0) == -1) {
-	    perror("[ERROR] Sending file");
-	    exit(1);
-	}
-	bzero(data, SIZE);
+        if (send(sockfd, data, sizeof(data), 0) == -1) {
+            perror("[ERROR] Sending file");
+            exit(1);
+        }
+        bzero(data, SIZE);
     }
 }
 
