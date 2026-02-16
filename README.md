@@ -36,4 +36,36 @@ Therefore, the description starts with the 3rd lab session.
 
 Fun fact: Both servers can run simultaneously since they use different ports!
 
-## 2. Client-Server Chat Application with file transfer support
+## 2. Client-Server Chat Application with File Transfer Support
+
+[**Jan 30 Lab Session**](./lab-04-jan-30/) focuses on implementing a client-server chat application with support for both message and file transfers. The server maintains two listening ports for incoming client connections. Two threads are created on both client and server sides - one for receiving messages and another for receiving files - while the main process handles outgoing transfers. To ease development, the application was built incrementally using knowledge gained from simpler preliminary tasks.
+
+**Server Side** (`app_server.c`):
+- **`int start_server(const char* server_ip, const int server_port, const char* label)`** - Creates a socket, binds it to the server address (`server_ip:server_port`), and starts listening for connection requests. Returns the file descriptor of the listening socket.
+
+- **`int init_channel(const int listen_fd, const char* channel_name)`** - Accepts the first connection request on the listening socket (`listen_fd`) and returns the connected socket's file descriptor. Logs which file descriptor is being used for the specified `channel_name`.
+
+- **`void* message_recv()`** - Thread function that continuously monitors `msg_socket` for incoming messages and prints them. Uses a `while` loop with a 100ms sleep after each message to prevent CPU blocking.
+
+- **`void* file_recv()`** - Thread function that continuously monitors `file_socket` for incoming files, similar to `message_recv()`.
+
+- **`void file_send(const int connection_socket, char* filename, const bool is_msg_file)`** - Sends a file over the specified socket. The `is_msg_file` flag indicates whether the file represents a message, as this function is also used internally by `message_send()`.
+
+- **`void message_send(const int connection_socket, char* message)`** - Sends a message by first storing it in a temporary file and then calling `file_send()`. This approach will simplify future encryption/decryption using libraries like OpenSSL.
+
+- **`void handle_outgoing(const int msg_socket, const int file_socket)`** - Main loop that prompts the user to choose between sending a file or message, then requests the appropriate input and initiates the transfer.
+
+**Client Side** (`app_client.c`):
+Contains the same functions as the server except `start_server()` and `init_channel()`. Instead, it includes:
+
+- **`int connect_to_server(const char* server_ip, const int server_port, const char* label)`** - Establishes a TCP connection to the server at `server_ip:server_port`. Returns the connected socket's file descriptor and logs the successful connection for the specified `label` purpose.
+
+**Upcoming Features**:
+
+- [ ] Encryption
+- [ ] Bug Fixes and UI
+- [ ] Multi-chat support
+
+## 3. Encrypted Client-Server Chat Application with File Transfer Support
+
+[**Feb 06 Lab Session**](./lab-05-feb-06/) extends the capabilities of chat application built previously to end-to-end encryption. 
