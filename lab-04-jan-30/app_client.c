@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ncurses.h>
 #include <semaphore.h>
 #include <pthread.h>
 #include <arpa/inet.h>
@@ -22,12 +23,41 @@ char msg_buf_incoming[SIZE];
 char file_buf_incoming[SIZE];
 char buf_outgoing[SIZE];
 
+// ncurse Windows for boxes
+WINDOW *log_win = NULL, *input_win = NULL;
+
 // file names to store intermediate files/messages
 // it will make it easier for us when we use encryption using openssl
 char* outgoing_message_fname = ".temp_msg_out.txt";
 char* incoming_message_fname = ".temp_msg_in.txt";
 char* outgoing_file_fname = ".temp_file_out.txt";
 char* incoming_file_fname = ".temp_file_in.txt";
+
+void init_windows() {
+    initscr();
+    cbreak();
+    echo();
+
+    int win_rows, win_cols, input_rows = 5;
+    getmaxyx(stdscr, win_rows, win_cols);
+
+    WINDOW *log_box = newwin(win_rows - input_rows, win_cols, 0, 0);
+    WINDOW *input_box = newwin(input_rows, win_cols, win_rows - 5, 0);
+    box(log_box, 0, 0);
+    box(input_box, 0, 0);
+
+    log_win = derwin(log_box, win_rows - input_rows - 2, win_cols - 4, 1, 2);
+    input_win = derwin(input_box, input_rows - 2, win_cols - 4, 1, 2);
+
+    scrollok(log_win, TRUE);
+    scrollok(input_win, TRUE);
+    keypad(log_win, TRUE);
+    keypad(input_win, TRUE);
+    idlok(input_win, TRUE);
+
+    wrefresh(log_box);
+    wrefresh(input_box);
+}
 
 int connect_to_server(const char* server_ip, const int server_port, const char* label) {
     int connection_socket;
@@ -277,5 +307,8 @@ int main() {
     // Close all opened sockets
     close(msg_socket);
     close(file_socket);
+
+    // End ncurse session with all its windows and subwindows
+    endwin();
     return 0;
 }

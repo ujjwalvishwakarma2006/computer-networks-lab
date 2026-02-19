@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ncurses.h>
 #include <semaphore.h>
 #include <pthread.h>
 #include <arpa/inet.h>
