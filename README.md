@@ -40,6 +40,8 @@ Fun fact: Both servers can run simultaneously since they use different ports!
 
 [**Jan 30 Lab Session**](./lab-04-jan-30/) focuses on implementing a client-server chat application with support for both message and file transfers. The server maintains two listening ports for incoming client connections. Two threads are created on both client and server sides - one for receiving messages and another for receiving files - while the main process handles outgoing transfers. To ease development, the application was built incrementally using knowledge gained from simpler preliminary tasks.
 
+>**Note**: Apart from the functions mentioned here, the code also contains some functions related to the `ncurses` library (for example; `init_windows()` and `wgetstring()`). 
+
 **Server Side** (`app_server.c`):
 - **`int start_server(const char* server_ip, const int server_port, const char* label)`** - Creates a socket, binds it to the server address (`server_ip:server_port`), and starts listening for connection requests. Returns the file descriptor of the listening socket.
 
@@ -63,9 +65,11 @@ Contains the same functions as the server except `start_server()` and `init_chan
 **Upcoming Features**:
 
 - [ ] Encryption
-- [ ] Bug Fixes and UI
+- [x] Bug Fixes and TUI (minimal using `ncurses` library)
 - [ ] Multi-chat support
 
 ## 3. Encrypted Client-Server Chat Application with File Transfer Support
 
 [**Feb 06 Lab Session**](./lab-05-feb-06/) extends the capabilities of chat application built previously to end-to-end encryption. 
+
+The organization of the codes is also improved to make the code manageable (especially combining the server and client codes removes redundancy of the code, and makes it easier to make any changes in a feature/protocol or UI)

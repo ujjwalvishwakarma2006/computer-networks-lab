@@ -9,18 +9,13 @@
 #include <unistd.h>
 #define SIZE 1024
 
-void error_and_exit(char* error) {
-    perror(error);
-    exit(1);
-}
-
 sem_t printing;
 const char* server_ip = "10.0.2.4";
 const int msg_port = 8080;
 const int file_port = 8081;
 int msg_socket, file_socket;
-char file_buf_incoming[SIZE];
 char msg_buf_incoming[SIZE];
+char file_buf_incoming[SIZE];
 char buf_outgoing[SIZE];
 
 // file names to store intermediate files/messages
@@ -29,6 +24,46 @@ char* outgoing_message_fname = ".temp_msg_out.txt";
 char* incoming_message_fname = ".temp_msg_in.txt";
 char* outgoing_file_fname = ".temp_file_out.txt";
 char* incoming_file_fname = ".temp_file_in.txt";
+
+// ncurse Windows for boxes
+WINDOW *log_win = NULL, *input_win = NULL;
+
+void error_and_exit(char* error) {
+    printw("Some Error Occured. "
+        "Press any key to see the error message on regular terminal.");
+    getch();
+    endwin();
+    perror(error);
+    exit(1);
+}
+
+void init_windows() {
+    initscr();
+    cbreak();
+    noecho();
+
+    int win_rows, win_cols, input_rows = 5;
+    getmaxyx(stdscr, win_rows, win_cols);
+
+    // window boxes
+    WINDOW *log_box = newwin(win_rows - input_rows, win_cols, 0, 0);
+    WINDOW *input_box = newwin(input_rows, win_cols, win_rows - 5, 0);
+    box(log_box, 0, 0);
+    box(input_box, 0, 0);
+
+    // actual windows; the trick is to use actual window dimension - 2 for row and cols
+    log_win = derwin(log_box, win_rows - input_rows - 2, win_cols - 4, 1, 2);
+    input_win = derwin(input_box, input_rows - 2, win_cols - 4, 1, 2);
+
+    scrollok(log_win, TRUE);
+    scrollok(input_win, TRUE);
+    keypad(log_win, TRUE);
+    keypad(input_win, TRUE);
+    idlok(input_win, TRUE);
+
+    wrefresh(log_box);
+    wrefresh(input_box);
+}
 
 int start_server(const char* server_ip, const int server_port, const char* label) {
     int server_socket;
@@ -49,7 +84,8 @@ int start_server(const char* server_ip, const int server_port, const char* label
     // Start listening on the port
     n = listen(server_socket, 2);
     if (n == -1) error_and_exit("[PORT LISTEN ERROR]");
-    printf("Listening on port %d for %s Connection Requests\n", server_port, label);
+    wprintw(log_win, "Listening on port %d for %s Connection Requests\n", server_port, label);
+    wrefresh(log_win);
 
     return server_socket;
 }
@@ -62,7 +98,8 @@ int init_channel(const int listen_fd, const char* channel_name) {
     // Accept incoming request
     connection_socket = accept(listen_fd, (struct sockaddr*)& client_addr, &addr_size);
     if (connection_socket == -1) error_and_exit("[CONNECTION ERROR]");
-    printf("Connected to client with file descriptor %d for %s\n", connection_socket, channel_name);
+    wprintw(log_win, "Connected to client with file descriptor %d for %s\n", connection_socket, channel_name);
+    wrefresh(log_win);
     
     return connection_socket;
 }
@@ -108,10 +145,12 @@ void* message_recv() {
         if (fp == NULL) error_and_exit("[RECV_MSG FILE OPENING ERROR]");
         
         sem_wait(&printing);
-        printf("Client: ");
+        wprintw(log_win, "Client: ");
         while (fgets(msg_buf_incoming, sizeof(msg_buf_incoming), fp) != NULL) {
-            printf("%s", msg_buf_incoming);    
+            wprintw(log_win, "%s", msg_buf_incoming);    
         }
+        wprintw(log_win, "\n");
+        wrefresh(log_win);
         sem_post(&printing);
 
         fclose(fp);
@@ -178,8 +217,9 @@ void* file_recv() {
 
         fclose(fp);
         sem_wait(&printing);
-        printf("Recieved `%s` from client\n", filename);
+        wprintw(log_win, "Client sent `%s`\n", filename);
         sem_post(&printing);
+        wrefresh(log_win);
         usleep(100000);
     }
 
@@ -229,8 +269,9 @@ void file_send(const int connection_socket, char* filename, const bool is_msg_fi
     fclose(fp);
     if (!is_msg_file) {
         sem_wait(&printing);
-        printf("  File sent `%s`\n", filename);
+        wprintw(log_win, "File sent `%s`\n", filename);
         sem_post(&printing);
+        wrefresh(log_win);
     }
 }
 
@@ -247,34 +288,72 @@ void message_send(const int connection_socket, char* message) {
     file_send(connection_socket, outgoing_message_fname, true);
 }
 
+// Function to take input with dynamic string length 
+char* wgetstring(WINDOW* window) {
+    int capacity = 512;
+    char* buffer = malloc(capacity * sizeof(char));
+    if (!buffer) return NULL;
+
+    int ch;
+    int i;
+
+    for (i = 0; ; ++i) {
+        ch = wgetch(window);
+        if (ch == '\n') break;
+
+        // Manually handle backspace behaviour
+        if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
+            if (i > 0) {
+                --i;
+                int y, x;
+                getyx(window, y, x);
+                wmove(window, y, x - 1);
+                wdelch(window);
+                wrefresh(window);
+            }
+            --i;
+            continue;
+        }
+
+        // Adjust buffer size based on the input length
+        if (i >= capacity - 1) {
+            capacity *= 2;
+            char* new_buffer = realloc(buffer, capacity * sizeof(char));
+            if (!new_buffer) {
+                free(buffer);
+                return NULL;
+            }
+            buffer = new_buffer;
+        }
+        buffer[i] = ch;
+        waddch(window, ch);
+        wrefresh(window);
+    }
+
+    buffer[i] = '\0';
+    return buffer;
+}
+
 // Function to handle outgoing messages/files
 void handle_outgoing(const int msg_socket, const int file_socket) {
     while (1) {
-        int object_type;
-        printf("You [ file(1) message(2) ]: ");
-        fflush(stdout);  // Force output to display immediately
-        scanf("%d", &object_type);
-    
-        if (object_type != 1 && object_type != 2) {
-            printf("  [INVALID OPTION] %d\n", object_type);
-            continue;
-        }
-        if (object_type == 1) {
-            char filename[128];
-            printf("  Filename: ");
-            fflush(stdout);
-            scanf("%s", filename);
-            file_send(file_socket, filename, false);
+        char* input = wgetstring(input_win);
+        wclear(input_win);
+        wrefresh(input_win);
+        
+        if (!input) continue;
+        
+        if (strncmp(input, "-f ", 3) == 0) {
+            file_send(file_socket, input + 3, false);
         } else {
-            char* message = NULL;
-            size_t msg_len = 0;
-            getchar();
-            printf("  Message: ");
-            fflush(stdout);
-            getline(&message, &msg_len, stdin);
-            message_send(msg_socket, message);
-            free(message);
+            sem_wait(&printing);
+            wprintw(log_win, "You: %s\n", input);
+            wrefresh(log_win);
+            message_send(msg_socket, input);
+            sem_post(&printing);
         }
+     
+        free(input);
     }
 }
 
@@ -282,6 +361,9 @@ int main() {
     sem_init(&printing, 0, 1);
     int msg_socket_listen, file_socket_listen;
     pthread_t msg_recv_thread, file_recv_thread, send_thread;
+
+    // Init ncurses windows
+    init_windows();
 
     // Initialize listening sockets 
     msg_socket_listen = start_server(server_ip, msg_port, "Message Transfer");
@@ -298,5 +380,7 @@ int main() {
     // Original Process handles outgoing transfers
     handle_outgoing(msg_socket, file_socket);
 
+    // End ncurse session with all its windows and subwindows
+    endwin();
     return 0;
 }
